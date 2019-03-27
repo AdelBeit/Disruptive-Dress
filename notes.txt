@@ -1,0 +1,94 @@
+hookup guide for pro micro:
+https://learn.sparkfun.com/tutorials/pro-micro--fio-v3-hookup-guide/all
+
+specs:
+- pro micro:
+-- 5v 
+-- 16mhz
+
+- pro mini:
+-- 3.3v
+-- 8mhz
+-- 328p
+
+- mma8452 accelerometer
+-- 3.3v system
+-- sda and scl pins need 330ohm resistors to connect to 5v system
+
+Without voltage regulator:
+    accelerometer(3.3v) to arduino(5v)
+    Hardware hookup:
+    Arduino --------------- MMA8452Q Breakout
+        3.3V  ---------------     3.3V
+        GND   ---------------     GND
+    SDA (A4) --\/330 Ohm\/--    SDA
+    SCL (A5) --\/330 Ohm\/--    SCL
+
+With voltage regulator (5v to 3.3v):
+    Hardware hookup:
+    Arduino --------------- MMA8452Q Breakout
+        3.3V  ---------------     3.3V
+        GND   ---------------     GND
+    SDA (A4) --\/330 Ohm\/--    SDA
+    SCL (A5) --\/330 Ohm\/--    SCL
+
+
+using arduino as a programmer for pro mini:
+- take out the arduino chip
+- Mini's Vcc = UNO's +5v/3.3v (depends on the board you have)
+- Mini's GND = UNO's GND
+- Mini's Tx = UNO's TX (pin no. 1)
+- Mini's Rx = UNO's RX (pin no. 0)
+- Mini's DTR = UNO's RESET
+push code to pro mini
+
+
+
+how to revive soft bricked pro micro
+https://www.instructables.com/id/How-to-Program-Arduino-Pro-Mini-Using-Arduino-UNO/
+
+- connect reset to ground twice quickly
+- now you have 8 seconds to upload correct code to fix the brick
+
+
+3d model notes:
+wrist (length x hight x width): 59mm  x 42mm x 15mm x 2mm
+palm (length x hight x width): 86mm x 35mm x 15mm x 2mm
+fingers (length x hight x width): 19mm x 15mm x 1mm
+
+
+
+
+---------------pins--------------
+        
+        pro micro
+
+    - 2 = resistor = sda
+    - 3 = resistor = scl
+    - 6 = left mouse button
+    - 7 = middle mouse button 
+    - 8 = right mouse button
+    - ground = orange capacitor = blue capacitor = acc gnd = v reg GND = resistor button (x3)
+    - vcc = vin vreg = button (x3)
+
+        vreg (metal facing away)
+
+    - vin = yellow capacitor
+    - middle pin (vout) = blue capacitor stripe side = acc 3.3 vin 
+    - gnd (leftmost pin)
+
+        accelerometer 
+
+    - GND
+    - scl = resistor = 3
+    - sda = resistor = 2
+    - 3.3v = blue capacitor = vout vreg
+
+        buttons
+    
+    - output            - 5v
+    - resistor > GND    - nothing
+
+
+download a fingerjoint box illustration for lazer cutting
+https://www.makercase.com/
