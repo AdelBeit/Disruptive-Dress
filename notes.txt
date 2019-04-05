@@ -1,3 +1,5 @@
+IDEA: use flexible resistors instead of buttons for the mouse
+
 hookup guide for pro micro:
 https://learn.sparkfun.com/tutorials/pro-micro--fio-v3-hookup-guide/all
 
@@ -40,7 +42,6 @@ using arduino as a programmer for pro mini:
 - Mini's Tx = UNO's TX (pin no. 1)
 - Mini's Rx = UNO's RX (pin no. 0)
 - Mini's DTR = UNO's RESET
-push code to pro mini
 
 
 
