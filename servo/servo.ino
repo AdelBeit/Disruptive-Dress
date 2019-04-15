@@ -5,6 +5,8 @@ Servo servo1;
 uint32_t next;
 
 const int servo_PIN = 11;
+const int up_PIN = 8;
+const int down_PIN = 9;
 
 void setup()
 {
@@ -12,6 +14,8 @@ void setup()
   // mix & max limits, in microseconds.
   // Be careful with shorter or longer pulses.
   servo1.attach(servo_PIN);//, 1000, 2000);
+  pinMode(up_PIN,INPUT_PULLUP);
+  pinMode(down_PIN,INPUT_PULLUP);
   Serial.begin(9600);
   next = millis() + 500;
 }
@@ -23,6 +27,13 @@ void loop()
   delay(i);
   servo1.write(0);
   delay(i);
+  if(!digitalRead(up_PIN)){
+    Serial.println("pull");
+    servo1.write(180);
+  }
+  else{
+    servo1.write(0);
+  }
 //  static bool rising = true;
 //
 //  if(millis() > next)

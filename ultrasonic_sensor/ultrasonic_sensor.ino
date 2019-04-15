@@ -22,12 +22,14 @@
  */
  
 // Pins
-const int TRIG_PIN = 13;
-const int ECHO_PIN = 12;
-const int vibromotor = 9;
+const int TRIG_PIN = 8;
+const int ECHO_PIN = 7;
+const int vibromotor = 12;
+const int vibromotor2 = 13;
 
 // 60cm max distance
 const float maxCM = 60.0;
+const float maxIN = 24;
 
 void setup() {
   Serial.begin (9600);
@@ -46,25 +48,37 @@ void loop() {
   digitalWrite(TRIG_PIN, LOW);
   // measure duration of HIGH pulse in microseconds, timeout in 1 sec
   duration = pulseIn(ECHO_PIN, HIGH, 100000); 
-  distance = measureDistance(duration); // get the distance in cm
+  distance = measureDistanceIN(duration); // get the distance in cm
   // vibrate if within range
-  if (distance <= maxCM && distance > 0){
+  Serial.print("distance: ");
+  Serial.print(distance);
+  Serial.print("in  ");
+  if (distance <= maxIN && distance > 0){
+    Serial.println("too close!");
     analogWrite(vibromotor, 255);
+    analogWrite(vibromotor2, 255);
   }
   else {
+    Serial.println("you're good...");
     analogWrite(vibromotor, 0);
+    analogWrite(vibromotor2, 0);
   }
-  Serial.print(distance);
-  Serial.println(" cm");
+//  Serial.println(" cm");
   delay(500);
 }
 
 
 // returns the distance based on delay
-float measureDistance(float microseconds){
+float measureDistanceCM(float microseconds){
   float seconds = microseconds / 1000000; // convert microseconds to seconds 
   float meters = seconds * 343; // distance in meters using speed of sound (343m/s)
   float cm = meters * 100; // m to cm 
   cm = cm/2; // want the distance to obstacle not roundtrip
   return cm;
+}
+
+// returns the distance based on delay
+float measureDistanceIN(float microseconds){
+  int in = measureDistanceCM(microseconds) * 0.393701;
+  return in;
 }
