@@ -29,7 +29,7 @@ const int vibromotor2 = 13;
 
 // 60cm max distance
 const float maxCM = 60.0;
-const float maxIN = 24;
+const float maxIN = 36;
 
 void setup() {
   Serial.begin (9600);
@@ -55,8 +55,10 @@ void loop() {
   Serial.print("in  ");
   if (distance <= maxIN && distance > 0){
     Serial.println("too close!");
-    analogWrite(vibromotor, 255);
-    analogWrite(vibromotor2, 255);
+    int vibPower = map(distance, maxIN, 0, 150, 255);
+    Serial.println(vibPower);
+    analogWrite(vibromotor, vibPower);
+    analogWrite(vibromotor2, vibPower);
   }
   else {
     Serial.println("you're good...");
