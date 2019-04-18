@@ -1,282 +1,172 @@
-/******************************************************************************
-https://github.com/sparkfun/MMA8452_Accelerometer
+#include <Servo.h>
 
-Hardware hookup:
-  Arduino --------------- MMA8452Q Breakout
-    3.3V  ---------------     3.3V
-    GND   ---------------     GND
-  SDA (A4) --\/330 Ohm\/--    SDA
-  SCL (A5) --\/330 Ohm\/--    SCL
-******************************************************************************/
+/**
+ * Ultrasonic sensor: HC-SR04 
+ * 
+ */
 
-#include <Wire.h> // Must include Wire library for I2C
-#include <SparkFun_MMA8452Q.h> // Includes the SFE_MMA8452Q library
+// Ultrasonic sensor ------------------
+unsigned long UltraStartTime = 0; // start time for measuring time
+unsigned long UltraMeasuredTime = 0; // end of measure time
+int uDelay = 500; // delay time for measuring distance
 
-// Begin using the library by creating an instance of the MMA8452Q
-//  class. We'll call it "accel". That's what we'll reference from
-//  here on out.
-MMA8452Q accel;
+// Pins
+const int TRIG_PIN = 12;
+const int ECHO_PIN = 13;
+const int vibromotor = 11;
+const int vibromotor2 = 10;
 
-int led1 = 2;
-int led2 = 3;
+// 60cm max distance
+const float maxCM = 60.0;
+const float maxIN = 36;
 
-int tolerance=20; // Sensitivity of the Alarm
-boolean calibrated=false; // When accelerometer is calibrated - changes to true 
-boolean moveDetected=false; // When motion is detected - changes to true
-
-//Accelerometer limits
-int xMin; //Minimum x Value
-int xMax; //Maximum x Value
-int xVal; //Current x Value
-
-int yMin; //Minimum y Value
-int yMax; //Maximum y Value
-int yVal; //Current y Value
-
-int zMin; //Minimum z Value
-int zMax; //Maximum z Value
-int zVal; //Current z Value
+// Servo ------------------
+Servo backServo;
+uint32_t next;
+const int servo_PIN = 2;
+// triggers servo
+bool moveBack = true;
 
 
-void setup()
-{
-  Wire.begin();
-  Serial.begin(9600);
-  accel.init();
-  Serial.println("PULL THE LEVER");
-  pinMode(led1, OUTPUT);
-  pinMode(led2, OUTPUT);
+// Felx ------------------
+const int triggerAngle = 3; // angle at which movement is detected
+const int FLEX_PIN = A0; // Pin connected to voltage divider output
+
+// Measure the voltage at 5V and the actual resistance of your
+// 47k resistor, and enter them below:
+const float VCC = 4.98; // Measured voltage of Ardunio 5V line
+const float R_DIV = 47000; // Measured resistance of 3.3k resistor, i'm actually using a 1.1k resistor
+
+int flexADC;
+float flexV;
+float flexR;
+
+// Upload the code, then try to adjust these values to more
+// accurately calculate bend degree.
+const float STRAIGHT_RESISTANCE = 37300.0; // resistance when straight
+const float BEND_RESISTANCE = 90000.0; // resistance at 90 deg
+
+unsigned long FlexStartTime = 0; // start time for measuring time
+unsigned long FlexMeasuredTime = 0; // end of measure time
+
+float printtimer = 1;
+int timePassed = 1; // boolean for when to trigger actions
+int inactivityInterval = 5000; // 5 seconds of inactivity will freak out the dress
+
+void setup() {
+  Serial.begin (9600);
+  // Ultrasonic sensor
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  
+  // Servo
+  backServo.attach(servo_PIN);
+
+  // Flex 
+  pinMode(FLEX_PIN, INPUT);
+  pinMode(LED_BUILTIN, OUTPUT);
 }
 
-void loop()
-{
-  // accel.available() waits for new data
-  //  from the accelerometer.
-  if (accel.available())
-  {
-    // read the new variables:
-    accel.read();
-    if(!calibrated)
-    {
-      calibrateAccel();
+void loop() {
+  
+  // Ultrasonic Sensor and vibromotors -------------  
+  UltraMeasuredTime = millis() - UltraStartTime; 
+  if(UltraStartTime == 0){
+    UltraStartTime = millis();
+    UltraMeasuredTime = uDelay;
+  }
+  // triggers every delay seconds 
+  if(UltraMeasuredTime >= uDelay){
+    UltraStartTime = millis();
+    float duration;
+    float distance;
+    // send a short burst
+    digitalWrite(TRIG_PIN, LOW);
+    delayMicroseconds(2);
+    digitalWrite(TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(TRIG_PIN, LOW);
+    // measure duration of HIGH pulse in microseconds, timeout in 1 sec
+    duration = pulseIn(ECHO_PIN, HIGH, 100000); 
+    distance = measureDistanceIN(duration); // get the distance in cm
+    // vibrate if within range
+    Serial.print("distance: ");
+    Serial.print(distance);
+    Serial.print("in  ");
+  //  Serial.print(" cm");
+    if (distance <= maxIN && distance > 0){
+      Serial.println("too close!");
+      int vibPower = map(distance, maxIN, 0, 150, 255);
+      Serial.println(vibPower);
+      analogWrite(vibromotor, vibPower);
+      analogWrite(vibromotor2, vibPower);
     }
-//    printCalculatedAccels();
-//    printOrientation();
-
-    Serial.println(); // Print new line every time.
-    
-    
-    // If the button is pressed, initialise and recalibrate the Accelerometer limits.
-    if(accel.readPL() == PORTRAIT_D)
-    {
-      calibrateAccel();
-    }
-    
-    // Once the accelerometer is calibrated - check for movement 
-    if(calibrated)
-    {
-      if(checkMotion())
-      {
-        moveDetected = true;
-      }
-    }
-    
-    // If motion is detected - sound the alarm !
-    if(moveDetected)
-    {
-      Serial.println("ALARM");
-      ALARM();
-      delay(1000);
+    else {
+      Serial.println("you're good...");
+      analogWrite(vibromotor, 0);
+      analogWrite(vibromotor2, 0);
     }
   }
-}
 
-//This is the function used to sound the buzzer
-void buzz(int reps, int rate){
- for(int i=0; i<reps; i++){
- analogWrite(buzzerPin,900);
- delay(100);
- analogWrite(buzzerPin,0);
- delay(rate);
- }
-} 
-
-
-
-
-// Function used to calibrate the Accelerometer
-void calibrateAccel(){
- // reset alarm
- moveDetected=false;
- 
- //initialise x,y,z variables
- xVal = analogRead(x);
- xMin = xVal;
- xMax = xVal;
- 
- yVal = analogRead(y);
- yMin = yVal;
- yMax = yVal;
- 
- zVal = analogRead(z);
- zMin = zVal;
- zMax = zVal;
- 
- // Calibration sequence initialisation sound - 3 seconds before calibration begins
- buzz(3,1000);
- 
- //calibrate the Accelerometer (should take about 0.5 seconds)
- for (int i=0; i<50; i++){
- // Calibrate X Values
- xVal = analogRead(x);
- if(xVal>xMax){
- xMax=xVal;
- }else if (xVal < xMin){
- xMin=xVal;
- }
-
- // Calibrate Y Values
- yVal = analogRead(y);
- if(yVal>yMax){
- yMax=yVal;
- }else if (yVal < yMin){
- yMin=yVal;
- }
-
- // Calibrate Z Values
- zVal = analogRead(z);
- if(zVal>zMax){
- zMax=zVal;
- }else if (zVal < zMin){
- zMin=zVal;
- }
-
- //Delay 10msec between readings
- delay(10);
- }
- 
- //End of calibration sequence sound. ARMED.
- buzz(3,40);
- printValues(); //Only useful when connected to computer- using serial monitor.
- calibrated=true;
- 
-}
-
-//Function used to detect motion. Tolerance variable adjusts the sensitivity of movement detected.
-boolean checkMotion(){
-  boolean validate=false;
-  xVal = analogRead(x);
-  yVal = analogRead(y);
-  zVal = analogRead(z);
-  
-  if(xVal >(xMax+tolerance)||xVal < (xMin-tolerance))
-  {
-    validate=true;
-    Serial.print("X Failed = ");
-    Serial.println(xVal);
+  // Flex and Servo -------------
+  if(FlexStartTime == 0){
+    FlexStartTime = millis();
   }
+  // Read the ADC, and calculate voltage and resistance from it
+  flexADC = analogRead(FLEX_PIN);
+  flexV = flexADC * VCC / 1023.0;
+  flexR = R_DIV * (VCC / flexV - 1.0);
   
-  if(yVal >(yMax+tolerance)||yVal < (yMin-tolerance))
-  {
-    validate=true;
-    Serial.print("Y Failed = ");
-    Serial.println(yVal);
+  // Use the calculated resistance to estimate the sensor's
+  // bend angle:
+  float angle = map(flexR, STRAIGHT_RESISTANCE, BEND_RESISTANCE,
+                   0, 90.0);
+//  Serial.println("Resistance: " + String(flexR) + " ohms");
+//  Serial.println("Bend: " + String(angle) + " degrees");
+//  Serial.println();
+  
+  // if the flex sensor is activated then restart the timer
+//  if(angle >= triggerAngle or FlexMeasuredTime >= 5100){
+  if(FlexMeasuredTime >= 5100){
+    FlexStartTime = millis();
+    digitalWrite(LED_BUILTIN, LOW);
+    moveBack = false;
+    Serial.println("movement detected");
   }
+
+  // measure the amount of time that has passed
+  FlexMeasuredTime = (millis() - FlexStartTime);
   
-  if(zVal >(zMax+tolerance)||zVal < (zMin-tolerance))
-  {
-    validate=true;
-    Serial.print("Z Failed = ");
-    Serial.println(zVal);
+  // if enough time has passed activate the servos
+  if(FlexMeasuredTime >= inactivityInterval){
+    Serial.println("no movement yet, freaking out");
+    digitalWrite(LED_BUILTIN, HIGH);
+    moveBack = true;
   }
- 
- return validate;
-}
 
-//Function used to blink the LED.
-void ALARM(){
-  
-  //don't check for movement until recalibrated again
-  calibrated=false;
-  
-  // sound the alarm and blink LED
-  digitalWrite(led1, HIGH);
-  delay(100);
-  digitalWrite(led1, LOW);
-}
-
-// Prints the Sensor limits identified during Accelerometer calibration.
-// Prints to the Serial monitor.
-void printValues(){
-  Serial.print("xMin=");
-  Serial.print(xMin);
-  Serial.print(", xMax=");
-  Serial.print(xMax);
-  Serial.println();
-  
-  Serial.print("yMin=");
-  Serial.print(yMin);
-  Serial.print(", yMax=");
-  Serial.print(yMax);
-  Serial.println();
-  
-  Serial.print("zMin=");
-  Serial.print(zMin);
-  Serial.print(", zMax=");
-  Serial.print(zMax);
-  Serial.println();
-  
-  Serial.println("------------------------");
-}
-
-void printAccels()
-{
-  Serial.print("x: ");
-  Serial.print("\t");
-  Serial.print(accel.x, 3);
-  Serial.print("\t");
-  Serial.print("y: ");
-  Serial.print("\t");
-  Serial.print(accel.y, 3);
-  Serial.print("\t");
-  Serial.print("z: ");
-  Serial.print("\t");
-  Serial.print(accel.z, 3);
-  Serial.print("\t");
-}
-
-void printCalculatedAccels()
-{ 
-  Serial.print("x: ");
-  Serial.print(accel.cx, 3);
-  Serial.print("\t");
-  Serial.print("y: ");
-  Serial.print(accel.cy, 3);
-  Serial.print("\t");
-  Serial.print("z: ");
-  Serial.print(accel.cz, 3);
-  Serial.print("\t");
-}
-
-void printOrientation()
-{
-  byte pl = accel.readPL();
-  switch (pl)
-  {
-    case PORTRAIT_U:
-      Serial.print("Portrait Up");
-      break;
-    case PORTRAIT_D:
-      Serial.print("Portrait Down");
-      break;
-    case LANDSCAPE_R:
-      Serial.print("Landscape Right");
-      break;
-    case LANDSCAPE_L:
-      Serial.print("Landscape Left");
-      break;
-    case LOCKOUT:
-      Serial.print("Flat");
-      break;
+  if(moveBack and FlexMeasuredTime%800 == 0){
+    Serial.println("100 millis");
+    backServo.write(0); // move back to neutral position
+    backServo.write(80); // extend back
   }
+  else{
+    backServo.write(0); // move back to neutral position
+  }
+
+//  delay(500);
+}
+
+// returns the distance based on delay
+float measureDistanceCM(float microseconds){
+  float seconds = microseconds / 1000000; // convert microseconds to seconds 
+  float meters = seconds * 343; // distance in meters using speed of sound (343m/s)
+  float cm = meters * 100; // m to cm 
+  cm = cm/2; // want the distance to obstacle not roundtrip
+  return cm;
+}
+
+// returns the distance based on delay
+float measureDistanceIN(float microseconds){
+  int in = measureDistanceCM(microseconds) * 0.393701;
+  return in;
 }
