@@ -35,9 +35,22 @@ void loop() {
 //  else{
 //    analogWrite(motorPin,0);
 //  }
-  for(int i=0; i<255;i+=10){
-    analogWrite(motorPin,i);
-    delay(200);
-    Serial.println(i);
-  }
+//  for(int i=0; i<255;i+=10){
+//    analogWrite(motorPin,i);
+//    delay(200);
+//    Serial.println(i);
+//  }
+  int i = 2000;
+  analogWrite(motorPin,50);
+  Serial.println("1  ");
+  delay(i);
+  analogWrite(motorPin,90);
+  Serial.println("2  ");
+  delay(i);
+  analogWrite(motorPin,100);
+  Serial.println("3  ");
+  delay(i);
+  analogWrite(motorPin,140);
+  Serial.println("4  ");
+  delay(i);
 }

@@ -9,12 +9,20 @@
 unsigned long UltraStartTime = 0; // start time for measuring time
 unsigned long UltraMeasuredTime = 0; // end of measure time
 int uDelay = 500; // delay time for measuring distance
+float duration;
+float distance;
+
+// vibroMotor ------------------
+// different intensities for different distances, [distance feet,stage]
+int stage1[] = {1,140};
+int stage2[] = {2,100};
+int stage3[] = {3,90};
 
 // Pins
 const int TRIG_PIN = 12;
 const int ECHO_PIN = 13;
-const int vibromotor = 11;
-const int vibromotor2 = 10;
+const int vibroMotor = 11;
+const int vibroMotor2 = 10;
 
 // 60cm max distance
 const float maxCM = 60.0;
@@ -27,10 +35,10 @@ const int servo_PIN = 2;
 // triggers servo
 bool triggerServo = true; // triggers activating servo
 bool openServo = true; // alternates between open and closed states of servo
-int servoMovementInterval = 500; // delay between moving back and forth for the servo
+int servoMovementInterval = 200; // delay between moving back and forth for the servo
 
 // Felx ------------------
-const int AngleChangeThreshold = 10; // angle at which movement is detected
+const int AngleChangeThreshold = 3; // angle at which movement is detected
 const int FLEX_PIN = A0; // Pin connected to voltage divider output
 
 int fDelay = 1000; // delay time for measuring bend angle
@@ -38,7 +46,7 @@ int fDelay = 1000; // delay time for measuring bend angle
 // Measure the voltage at 5V and the actual resistance of your
 // 47k resistor, and enter them below:
 const float VCC = 4.98; // Measured voltage of Ardunio 5V line
-const float R_DIV = 46300; // Measured resistance of 3.3k resistor, i'm actually using a 1.1k resistor
+const float R_DIV = 46300; // 47k, measured to 46.3k
 //const float R_DIV = 20000; // Measured resistance of 3.3k resistor, i'm actually using a 1.1k resistor
 
 int flexADC;
@@ -58,9 +66,10 @@ int lastAngle = 0; // keeps track of most recent angle
 float angle = 0;
 
 // print statements
-bool printFlex = true;
-bool printUltra = false;
-bool printVibro = false;
+bool printFlex = false;
+bool printedFlex = false; // dont double print flex
+bool printUltra = true;
+bool printVibro = true;
 
 void setup() {
   Serial.begin (9600);
@@ -73,12 +82,11 @@ void setup() {
 
   // Flex 
   pinMode(FLEX_PIN, INPUT);
-//  pinMode(LED_BUILTIN, OUTPUT);
 }
 
 void loop() {
   
-  // Ultrasonic Sensor and vibromotors -------------  
+  // Ultrasonic Sensor and vibroMotors -------------  
   UltraMeasuredTime = millis() - UltraStartTime; 
   if(UltraStartTime == 0){
     UltraStartTime = millis();
@@ -87,8 +95,6 @@ void loop() {
   // triggers every delay seconds 
   if(UltraMeasuredTime >= uDelay){
     UltraStartTime = millis();
-    float duration;
-    float distance;
     // send a short burst
     digitalWrite(TRIG_PIN, LOW);
     delayMicroseconds(2);
@@ -105,17 +111,20 @@ void loop() {
       Serial.print("in  ");
   //  Serial.print(" cm");
     }
-    if (distance <= maxIN && distance > 0){
+    if (distance <= maxIN and distance > 0){
       if(printUltra) Serial.println("too close! Vibrate!");
-      int vibPower = map(distance, maxIN, 0, 150, 255);
-      if(printVibro)Serial.println(vibPower);
-      analogWrite(vibromotor, vibPower);
-      analogWrite(vibromotor2, vibPower);
+      int vibPower;
+//      int vibPower = map(int(distance)%12, maxIN/12, 0, 90, 150);
+      vibPower = Vibrate(distance);
+      analogWrite(vibroMotor,vibPower);
+      analogWrite(vibroMotor2,vibPower);
+//      if(printVibro)Serial.println(vibPower);
     }
     else {
       if(printUltra) Serial.println("you're good...");
-      analogWrite(vibromotor, 0);
-      analogWrite(vibromotor2, 0);
+      analogWrite(vibroMotor, 0);
+      analogWrite(vibroMotor2, 0);
+//      Vibrate(distance);
     }
   }
 
@@ -128,38 +137,45 @@ void loop() {
   flexADC = analogRead(FLEX_PIN);
   flexV = flexADC * VCC / 1023.0;
   flexR = R_DIV * (VCC / flexV - 1.0);
-
-  // Use the calculated resistance to estimate the sensor's
-  // bend angle:
-  lastAngle = angle;
-  angle = map(flexR, STRAIGHT_RESISTANCE, BEND_RESISTANCE,
-                   0, 90.0);
   
   // measure the amount of time that has passed
   FlexMeasuredTime = (millis() - FlexStartTime);
-  float angleChange = abs(lastAngle - angle); // keeps track of amount of change in angle
-  
-  // if the flex sensor is activated then restart the timer
-  if(angleChange > AngleChangeThreshold and FlexMeasuredTime%fDelay == 0){
-    FlexStartTime = millis();
-    triggerServo = false;
-    printFlex = true;
-    if(printFlex){
-      Serial.println("----------- movement detected, stop moving -----------");
+  if(FlexMeasuredTime % fDelay == 0){
+      
+    // Use the calculated resistance to estimate the sensor's
+    // bend angle:
+    lastAngle = angle;
+    angle = map(flexR, STRAIGHT_RESISTANCE, BEND_RESISTANCE,0, 90.0);
+    float angleChange = abs(lastAngle - angle); // keeps track of amount of change in angle
+
+    printedFlex = false;
+    // if the flex sensor is activated then restart the timer
+    if(angleChange > AngleChangeThreshold){
+      FlexStartTime = millis();
+      triggerServo = false;
+      if(printFlex){
+        Serial.println("++++++++++ movement detected, stop moving +++++++++");
+        Serial.println("Bend: " + String(angle) + " degrees");
+        Serial.print("Angle changed by: ");
+        Serial.println(angleChange);
+        Serial.println();
+        printedFlex = true;
+      }
+    }
+    
+    // print flex sensor angle
+    if(printFlex and !printedFlex){
+      Serial.println("Resistance: " + String(flexR) + " ohms");
       Serial.println("Bend: " + String(angle) + " degrees");
       Serial.print("Angle changed by: ");
       Serial.println(angleChange);
       Serial.println();
-      printFlex = false;
     }
-  }
-  else{
-    printFlex = true;
   }
   
   // if enough time has passed activate the servos
   if(FlexMeasuredTime >= inactivityInterval and FlexMeasuredTime%fDelay == 0){
-    if(printFlex)Serial.println("no movement yet, freaking out");
+    if(printFlex)Serial.println("----------- no movement yet, freaking out -----------");
     triggerServo = true;
   }
 
@@ -178,15 +194,6 @@ void loop() {
   if(!triggerServo){
     backServo.write(0);
   }
-  
-  // print flex sensor angle
-  if(printFlex and FlexMeasuredTime%fDelay == 0){
-      Serial.println("Resistance: " + String(flexR) + " ohms");
-      Serial.println("Bend: " + String(angle) + " degrees");
-      Serial.print("Angle changed by: ");
-      Serial.println(angleChange);
-      Serial.println();
-    }
 
 //  delay(500);
 }
@@ -204,4 +211,29 @@ float measureDistanceCM(float microseconds){
 float measureDistanceIN(float microseconds){
   int in = measureDistanceCM(microseconds) * 0.393701;
   return in;
+}
+
+// return intensity of vibroMotor given distance from ultrasonic sensor
+int Vibrate(float distance){
+  if(distance > 0 and distance <= stage1[0]*12){
+//   analogWrite(vibroMotor,stage1[1]);
+//   analogWrite(vibroMotor2,stage1[1]);
+   if(printVibro) Serial.println("========== stage 1 ==========");
+   return stage1[1];
+  } else if(distance > stage1[0]*12 and distance <= stage2[0]*12){
+//   analogWrite(vibroMotor,stage2[1]);
+//   analogWrite(vibroMotor2,stage2[1]);
+   if(printVibro) Serial.println("========== stage 2 ==========");
+   return stage2[1];
+  }else if(distance > stage2[0]*12 and distance <= stage3[0]*12){
+//   analogWrite(vibroMotor,stage3[1]);
+//   analogWrite(vibroMotor2,stage3[1]);
+   if(printVibro) Serial.println("========== stage 3 ==========");
+   return stage3[1];
+  }else{
+//   analogWrite(vibroMotor,0);
+//   analogWrite(vibroMotor2,0);
+   if(printVibro) Serial.println("========== stage 0 ==========");
+   return 0;
+  }
 }
