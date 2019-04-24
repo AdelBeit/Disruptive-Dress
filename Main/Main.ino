@@ -25,17 +25,21 @@ Servo backServo;
 uint32_t next;
 const int servo_PIN = 2;
 // triggers servo
-bool moveBack = true;
-
+bool triggerServo = true; // triggers activating servo
+bool openServo = true; // alternates between open and closed states of servo
+int servoMovementInterval = 500; // delay between moving back and forth for the servo
 
 // Felx ------------------
-const int triggerAngle = 3; // angle at which movement is detected
+const int AngleChangeThreshold = 10; // angle at which movement is detected
 const int FLEX_PIN = A0; // Pin connected to voltage divider output
+
+int fDelay = 1000; // delay time for measuring bend angle
 
 // Measure the voltage at 5V and the actual resistance of your
 // 47k resistor, and enter them below:
 const float VCC = 4.98; // Measured voltage of Ardunio 5V line
-const float R_DIV = 47000; // Measured resistance of 3.3k resistor, i'm actually using a 1.1k resistor
+const float R_DIV = 46300; // Measured resistance of 3.3k resistor, i'm actually using a 1.1k resistor
+//const float R_DIV = 20000; // Measured resistance of 3.3k resistor, i'm actually using a 1.1k resistor
 
 int flexADC;
 float flexV;
@@ -49,9 +53,14 @@ const float BEND_RESISTANCE = 90000.0; // resistance at 90 deg
 unsigned long FlexStartTime = 0; // start time for measuring time
 unsigned long FlexMeasuredTime = 0; // end of measure time
 
-float printtimer = 1;
-int timePassed = 1; // boolean for when to trigger actions
-int inactivityInterval = 5000; // 5 seconds of inactivity will freak out the dress
+int inactivityInterval = 10000; // 5 seconds of inactivity will freak out the dress
+int lastAngle = 0; // keeps track of most recent angle
+float angle = 0;
+
+// print statements
+bool printFlex = true;
+bool printUltra = false;
+bool printVibro = false;
 
 void setup() {
   Serial.begin (9600);
@@ -64,7 +73,7 @@ void setup() {
 
   // Flex 
   pinMode(FLEX_PIN, INPUT);
-  pinMode(LED_BUILTIN, OUTPUT);
+//  pinMode(LED_BUILTIN, OUTPUT);
 }
 
 void loop() {
@@ -90,19 +99,21 @@ void loop() {
     duration = pulseIn(ECHO_PIN, HIGH, 100000); 
     distance = measureDistanceIN(duration); // get the distance in cm
     // vibrate if within range
-    Serial.print("distance: ");
-    Serial.print(distance);
-    Serial.print("in  ");
+    if(printUltra){
+      Serial.print("distance: ");
+      Serial.print(distance);
+      Serial.print("in  ");
   //  Serial.print(" cm");
+    }
     if (distance <= maxIN && distance > 0){
-      Serial.println("too close!");
+      if(printUltra) Serial.println("too close! Vibrate!");
       int vibPower = map(distance, maxIN, 0, 150, 255);
-      Serial.println(vibPower);
+      if(printVibro)Serial.println(vibPower);
       analogWrite(vibromotor, vibPower);
       analogWrite(vibromotor2, vibPower);
     }
     else {
-      Serial.println("you're good...");
+      if(printUltra) Serial.println("you're good...");
       analogWrite(vibromotor, 0);
       analogWrite(vibromotor2, 0);
     }
@@ -112,46 +123,70 @@ void loop() {
   if(FlexStartTime == 0){
     FlexStartTime = millis();
   }
+
   // Read the ADC, and calculate voltage and resistance from it
   flexADC = analogRead(FLEX_PIN);
   flexV = flexADC * VCC / 1023.0;
   flexR = R_DIV * (VCC / flexV - 1.0);
-  
+
   // Use the calculated resistance to estimate the sensor's
   // bend angle:
-  float angle = map(flexR, STRAIGHT_RESISTANCE, BEND_RESISTANCE,
+  lastAngle = angle;
+  angle = map(flexR, STRAIGHT_RESISTANCE, BEND_RESISTANCE,
                    0, 90.0);
-//  Serial.println("Resistance: " + String(flexR) + " ohms");
-//  Serial.println("Bend: " + String(angle) + " degrees");
-//  Serial.println();
   
-  // if the flex sensor is activated then restart the timer
-//  if(angle >= triggerAngle or FlexMeasuredTime >= 5100){
-  if(FlexMeasuredTime >= 5100){
-    FlexStartTime = millis();
-    digitalWrite(LED_BUILTIN, LOW);
-    moveBack = false;
-    Serial.println("movement detected");
-  }
-
   // measure the amount of time that has passed
   FlexMeasuredTime = (millis() - FlexStartTime);
+  float angleChange = abs(lastAngle - angle); // keeps track of amount of change in angle
   
-  // if enough time has passed activate the servos
-  if(FlexMeasuredTime >= inactivityInterval){
-    Serial.println("no movement yet, freaking out");
-    digitalWrite(LED_BUILTIN, HIGH);
-    moveBack = true;
-  }
-
-  if(moveBack and FlexMeasuredTime%800 == 0){
-    Serial.println("100 millis");
-    backServo.write(0); // move back to neutral position
-    backServo.write(80); // extend back
+  // if the flex sensor is activated then restart the timer
+  if(angleChange > AngleChangeThreshold and FlexMeasuredTime%fDelay == 0){
+    FlexStartTime = millis();
+    triggerServo = false;
+    printFlex = true;
+    if(printFlex){
+      Serial.println("----------- movement detected, stop moving -----------");
+      Serial.println("Bend: " + String(angle) + " degrees");
+      Serial.print("Angle changed by: ");
+      Serial.println(angleChange);
+      Serial.println();
+      printFlex = false;
+    }
   }
   else{
-    backServo.write(0); // move back to neutral position
+    printFlex = true;
   }
+  
+  // if enough time has passed activate the servos
+  if(FlexMeasuredTime >= inactivityInterval and FlexMeasuredTime%fDelay == 0){
+    if(printFlex)Serial.println("no movement yet, freaking out");
+    triggerServo = true;
+  }
+
+  // if movement is detected do this every 200 miliseconds
+  if(triggerServo and FlexMeasuredTime%servoMovementInterval == 0){
+    // when the time is right and the servo trigger is true then open and close the servo
+    if(openServo){
+      backServo.write(80); // move back to neutral position
+      openServo = 1 - openServo;
+    }else{
+      backServo.write(0); // extend back
+      openServo = 1 - openServo;
+    }
+  }
+  // when it's not supposed to move, move it back to neutral position
+  if(!triggerServo){
+    backServo.write(0);
+  }
+  
+  // print flex sensor angle
+  if(printFlex and FlexMeasuredTime%fDelay == 0){
+      Serial.println("Resistance: " + String(flexR) + " ohms");
+      Serial.println("Bend: " + String(angle) + " degrees");
+      Serial.print("Angle changed by: ");
+      Serial.println(angleChange);
+      Serial.println();
+    }
 
 //  delay(500);
 }

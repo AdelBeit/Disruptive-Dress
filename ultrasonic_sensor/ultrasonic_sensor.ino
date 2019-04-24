@@ -24,8 +24,8 @@
 // Pins
 const int TRIG_PIN = 12;
 const int ECHO_PIN = 13;
-const int vibromotor = 6;
-const int vibromotor2 = 7;
+const int vibromotor = 10;
+const int vibromotor2 = 11;
 
 // 60cm max distance
 const float maxCM = 60.0;
