@@ -1,0 +1,2 @@
+circuit to control vibromotors using arduino while powering them with battery:
+use mosfet transistor 100ma

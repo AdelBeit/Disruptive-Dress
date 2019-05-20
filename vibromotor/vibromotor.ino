@@ -11,14 +11,14 @@
   motor will remain off.
 */
 
-const int motorPin = 11;     // motor connected to PWM pin 9
-const int motorPin2 = 10;     // motor connected to PWM pin 9
-const int led = 11;
+const int motorPin = 10;     // motor connected to PWM pin 9
+//const int motorPin2 = 10;     // motor connected to PWM pin 9
+const int led = LED_BUILTIN;
 
 const int button_PIN = 8;
 
 void setup() {
-  pinMode(button_PIN, INPUT_PULLUP);
+//  pinMode(button_PIN, INPUT_PULLUP);
   pinMode(led,OUTPUT);
   delay(300);
   Serial.begin(9600);
@@ -41,16 +41,16 @@ void loop() {
 //    Serial.println(i);
 //  }
   int i = 2000;
-  analogWrite(motorPin,50);
+  analogWrite(motorPin,140);
   Serial.println("1  ");
   delay(i);
-  analogWrite(motorPin,90);
+  analogWrite(motorPin,160);
   Serial.println("2  ");
   delay(i);
-  analogWrite(motorPin,100);
+  analogWrite(motorPin,180);
   Serial.println("3  ");
   delay(i);
-  analogWrite(motorPin,140);
+  analogWrite(motorPin,200);
   Serial.println("4  ");
   delay(i);
 }
