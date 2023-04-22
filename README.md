@@ -8,7 +8,7 @@ The goal of this project is to explore movement as input and output in interacti
 
 Inspiration
 ---
-![image inspiration](./resources/images/inspiration.png)
+![image inspiration](./resources/images/Inspiration.png)
 
 
 Storyboard
